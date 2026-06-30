@@ -145,4 +145,29 @@ bool Protocol::serializeError(char* buf, size_t size, const char* code, uint32_t
   return serializeJson(d, buf, size) > 0;
 }
 
+bool Protocol::serializeButton(char* buf, size_t size, const char* button, const char* action,
+                               Page page, bool muted, uint32_t uptimeMs) {
+  JsonDocument d;
+  d["type"] = "button";
+  d["protocol"] = PROTOCOL_VERSION;
+  d["button"] = button;
+  d["action"] = action;
+  d["page"] = toString(page);
+  d["muted"] = muted;
+  d["uptime_ms"] = uptimeMs;
+  return serializeJson(d, buf, size) > 0;
+}
+
+bool Protocol::serializePage(char* buf, size_t size, Page page, bool muted, uint32_t uptimeMs,
+                             Page prevPage) {
+  JsonDocument d;
+  d["type"] = "page";
+  d["protocol"] = PROTOCOL_VERSION;
+  d["page"] = toString(page);
+  d["muted"] = muted;
+  d["uptime_ms"] = uptimeMs;
+  if (prevPage != Page::Unknown) d["prev_page"] = toString(prevPage);
+  return serializeJson(d, buf, size) > 0;
+}
+
 }  // namespace ccb

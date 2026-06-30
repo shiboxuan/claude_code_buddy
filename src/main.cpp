@@ -10,6 +10,7 @@
 #include <string>
 
 #include "app/AppState.h"
+#include "app/ButtonController.h"
 #include "app/Config.h"
 #include "app/Protocol.h"
 #include "app/SerialTransport.h"
@@ -19,6 +20,7 @@
 static ccb::SerialTransport transport;
 static ccb::Protocol protocol;
 static ccb::AppState state;
+static ccb::ButtonController buttons;
 
 static uint32_t g_lastHelloMs = 0;
 static const uint32_t kHelloRetryMs = 1000;  // 未握手则每秒重发 hello
@@ -52,6 +54,13 @@ static void sendError(const char* code, const char* msg = nullptr) {
   if (protocol.serializeError(buf, sizeof(buf), code, millis(), msg)) transport.sendLine(buf);
 }
 
+// FW-P6-T04：非按钮触发的切页上报 page 帧
+static void sendPageFrame(ccb::Page prev) {
+  char buf[128];
+  if (protocol.serializePage(buf, sizeof(buf), state.page, state.muted, millis(), prev))
+    transport.sendLine(buf);
+}
+
 static void handleLine(const std::string& line) {
   ccb::ParseResult r;
   protocol.parse(line, r);
@@ -75,9 +84,13 @@ static void handleLine(const std::string& line) {
       sendAck(r.seq);
       if (!r.ackOk) {
         state.errorCode = "version_mismatch";
-        ccb::setPage(state, ccb::Page::Error);  // FW-P5-T04/T06：版本不兼容进 error 页
+        ccb::Page prev = state.page;
+        ccb::setPage(state, ccb::Page::Error);  // 版本不兼容进 error 页
+        if (state.page != prev) sendPageFrame(prev);  // FW-P6-T04
       } else if (state.page == ccb::Page::Error) {
+        ccb::Page prev = state.page;
         ccb::setPage(state, ccb::Page::Mascot);  // 握手恢复 → 回 mascot
+        if (state.page != prev) sendPageFrame(prev);
       }
       requestRedraw();  // 握手态变化 → 状态条更新
       break;
@@ -143,15 +156,8 @@ void loop() {
   std::string line;
   while (transport.recvLine(line)) handleLine(line);
 
-  // 按钮切页（FW-P3 骨架；短/长按检测与上报见 FW-P6 ButtonController）
-  if (M5.BtnA.wasPressed()) {
-    ccb::nextPage(state);
-    requestRedraw();
-  }
-  if (M5.BtnB.wasPressed()) {
-    ccb::backToMascot(state);
-    requestRedraw();
-  }
+  // 按钮（FW-P6 ButtonController：短/长按检测 + 动作 + 上报 button 帧；FR-013 仅本地+上报）
+  if (buttons.poll(millis(), state, protocol, transport)) requestRedraw();
 
   // 渲染调度：render-on-change + 帧率驱动 mascot 动画，串口消息不阻塞渲染
   bool frameDue = (millis() - g_lastRenderMs >= kFrameIntervalMs);

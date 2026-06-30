@@ -9,6 +9,7 @@
 #include <string>
 
 #include "app/Config.h"
+#include "app/Types.h"
 
 namespace ccb {
 
@@ -60,6 +61,11 @@ class Protocol {
   bool serializePong(char* buf, size_t size, uint32_t tsMs, int64_t echoTsMs);
   bool serializeError(char* buf, size_t size, const char* code, uint32_t uptimeMs,
                       const char* msg = nullptr);
+  // FW-P6：button/page 上行帧
+  bool serializeButton(char* buf, size_t size, const char* button, const char* action,
+                       Page page, bool muted, uint32_t uptimeMs);
+  bool serializePage(char* buf, size_t size, Page page, bool muted, uint32_t uptimeMs,
+                     Page prevPage = Page::Unknown);
 
  private:
   JsonDocument doc_;  // 复用，避免反复堆分配
