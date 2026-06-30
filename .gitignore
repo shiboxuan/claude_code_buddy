@@ -18,3 +18,7 @@ CMakeCache.txt
 *.elf
 *.bin
 *.map
+
+# Python（host_sim 等工具的字节码缓存）
+__pycache__/
+*.pyc
