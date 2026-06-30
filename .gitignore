@@ -1,0 +1,20 @@
+# PlatformIO 构建产物
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+
+# CLion 构建产物（IDE 配置本身由 PIO 插件生成，见 CMakeLists.txt）
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+
+# 个人 IDE 配置（机器相关，不入库）
+.idea/
+
+# 编译/链接产物
+*.o
+*.elf
+*.bin
+*.map
