@@ -10,28 +10,62 @@
 #include <stdint.h>
 #include <queue>
 #include <string>
+#include <utility>
 
 #include "app/Config.h"
 
 namespace ccb {
 
-// 纯 C++ 行缓冲：累积字节、按 '\n' 切行；单行超过 FRAME_MAX_BYTES 标记超限并丢弃该行。
+// 纯 C++ 行缓冲（header-only，无 Arduino 依赖，可 native 单测）：
+// 累积字节、按 '\n' 切行；单行超过 FRAME_MAX_BYTES 标记超限并丢弃该行（保持上一行）。
 class LineBuffer {
  public:
   // 喂入若干字节（可能含多行或半行）。返回新增完整行数。
-  size_t feed(const char* data, size_t len);
-  // 是否有完整行可取
+  size_t feed(const char* data, size_t len) {
+    size_t newLines = 0;
+    for (size_t i = 0; i < len; ++i) {
+      char c = data[i];
+      if (c == '\n') {
+        if (discardUntilNl_) {
+          discardUntilNl_ = false;  // 超限行结尾，丢弃并恢复
+          cur_.clear();
+        } else {
+          lines_.push(std::move(cur_));
+          cur_.clear();
+          ++newLines;
+        }
+      } else if (c == '\r') {
+        continue;  // 忽略 CR（兼容 CRLF）
+      } else {
+        if (discardUntilNl_) continue;  // 超限行内部字节，丢弃
+        cur_.push_back(c);
+        if (cur_.size() > FRAME_MAX_BYTES) {
+          frameTooLarge_ = true;  // 单行超限：标记、丢弃、忽略到行尾
+          discardUntilNl_ = true;
+          cur_.clear();
+        }
+      }
+    }
+    return newLines;
+  }
   bool hasNext() const { return !lines_.empty(); }
-  // 取下一行（不含 '\n'）；无行返回 false
-  bool next(std::string& out);
-  // 消费「超限行」标志（出现过则返回 true 并复位）
-  bool consumeFrameTooLarge();
+  bool next(std::string& out) {
+    if (lines_.empty()) return false;
+    out = std::move(lines_.front());
+    lines_.pop();
+    return true;
+  }
+  bool consumeFrameTooLarge() {
+    bool f = frameTooLarge_;
+    frameTooLarge_ = false;
+    return f;
+  }
 
  private:
-  std::string cur_;                    // 当前未完成行
-  std::queue<std::string> lines_;      // 已完成行队列
-  bool frameTooLarge_ = false;         // 自上次消费以来出现过超限行
-  bool discardUntilNl_ = false;        // 当前超限行，丢弃到下一个 '\n'
+  std::string cur_;
+  std::queue<std::string> lines_;
+  bool frameTooLarge_ = false;
+  bool discardUntilNl_ = false;
 };
 
 // USB CDC 串口传输：非阻塞按行读、按行写。

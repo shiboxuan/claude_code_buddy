@@ -26,6 +26,8 @@ static ccb::AudioController audio;
 
 static uint32_t g_lastHelloMs = 0;
 static const uint32_t kHelloRetryMs = 1000;  // 未握手则每秒重发 hello
+static uint32_t g_lastFrameMs = 0;
+static const uint32_t kDisconnectMs = 15000;  // FW-P8-T04：15s 无帧判定断线
 
 // 渲染调度（FW-P3-T05）：render-on-change + 帧率上限，串口消息不阻塞渲染
 static bool g_needRedraw = true;
@@ -64,6 +66,7 @@ static void sendPageFrame(ccb::Page prev) {
 }
 
 static void handleLine(const std::string& line) {
+  g_lastFrameMs = millis();  // FW-P8-T04：任何行到达 = serial 存活
   ccb::ParseResult r;
   protocol.parse(line, r);
 
@@ -155,6 +158,7 @@ void setup() {
 
   sendHello();
   g_lastHelloMs = millis();
+  g_lastFrameMs = millis();  // FW-P8-T04
 }
 
 void loop() {
@@ -185,6 +189,12 @@ void loop() {
       state.color = ccb::Color::Green;
       requestRedraw();
     }
+  }
+
+  // FW-P8-T04：心跳超时(15s 无帧)判定断线 → resetConnection，hello 重试将重握手
+  if (state.handshakeDone && (millis() - g_lastFrameMs > kDisconnectMs)) {
+    state.resetConnection();
+    requestRedraw();
   }
 
   // 未握手则周期重发 hello（含断线重连后重握手，FW-P8-T04）
