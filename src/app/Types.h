@@ -95,4 +95,16 @@ inline const char* toString(Page p) {
   }
 }
 
+inline const char* toString(GlobalState s) {
+  switch (s) {
+    case GlobalState::DeviceDisconnected: return "disc";
+    case GlobalState::AdapterConnected: return "conn";
+    case GlobalState::Idle: return "idle";
+    case GlobalState::Working: return "work";
+    case GlobalState::Attention: return "attn";
+    case GlobalState::Error: return "error";
+    default: return "unknown";
+  }
+}
+
 }  // namespace ccb
