@@ -73,11 +73,20 @@ static void handleLine(const std::string& line) {
     case ccb::FrameType::HelloAck:
       state.applyHelloAck(r.ackOk);
       sendAck(r.seq);
+      if (!r.ackOk) {
+        state.errorCode = "version_mismatch";
+        ccb::setPage(state, ccb::Page::Error);  // FW-P5-T04/T06：版本不兼容进 error 页
+      } else if (state.page == ccb::Page::Error) {
+        ccb::setPage(state, ccb::Page::Mascot);  // 握手恢复 → 回 mascot
+      }
       requestRedraw();  // 握手态变化 → 状态条更新
       break;
     case ccb::FrameType::DeviceSnapshot:
       state.applyDeviceSnapshot(protocol.doc());
       sendAck(r.seq);
+      // FW-P5-T06：done(color=blue) 启动 doneTtl 计时；非 done 取消
+      if (state.color == ccb::Color::Blue) state.doneTimer.start(millis());
+      else state.doneTimer.cancel();
       requestRedraw();
       break;
     case ccb::FrameType::SessionSnapshot:
@@ -150,6 +159,16 @@ void loop() {
     ccb::renderCurrentPage(state, millis());
     g_needRedraw = false;
     g_lastRenderMs = millis();
+  }
+
+  // FW-P5-T06：done 超时(doneTtlMs，默认 5s)本地回 idle（BR-007）
+  {
+    uint32_t ttl = state.config.hasDoneTtl ? state.config.doneTtlMs : 5000;
+    if (state.doneTimer.expired(millis(), ttl)) {
+      state.globalState = ccb::GlobalState::Idle;
+      state.color = ccb::Color::Green;
+      requestRedraw();
+    }
   }
 
   // 未握手则周期重发 hello（含断线重连后重握手，FW-P8-T04）

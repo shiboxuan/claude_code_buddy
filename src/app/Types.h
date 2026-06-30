@@ -108,4 +108,17 @@ inline const char* toString(GlobalState s) {
   }
 }
 
+inline const char* toString(SessionState s) {
+  switch (s) {
+    case SessionState::Idle: return "idle";
+    case SessionState::Working: return "work";
+    case SessionState::Attention: return "attn";
+    case SessionState::Plan: return "plan";
+    case SessionState::DoneRecent: return "done";
+    case SessionState::Error: return "err";
+    case SessionState::Ended: return "ended";
+    default: return "unk";
+  }
+}
+
 }  // namespace ccb
