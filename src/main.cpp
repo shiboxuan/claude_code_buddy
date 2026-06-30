@@ -26,7 +26,7 @@ static const uint32_t kHelloRetryMs = 1000;  // 未握手则每秒重发 hello
 // 渲染调度（FW-P3-T05）：render-on-change + 帧率上限，串口消息不阻塞渲染
 static bool g_needRedraw = true;
 static uint32_t g_lastRenderMs = 0;
-static const uint32_t kFrameIntervalMs = 50;  // ~20fps 渲染上限（FW-P4 动画将复用）
+static const uint32_t kFrameIntervalMs = 100;  // 10 FPS（6-12 范围），mascot 动画帧率
 
 static void requestRedraw() { g_needRedraw = true; }
 
@@ -117,7 +117,7 @@ void setup() {
   state.loadMuted();  // FW-P2-T04：从 NVS 恢复静音
 
   // 首帧渲染 mascot 页（状态条显示 USB: wait）
-  ccb::renderCurrentPage(state);
+  ccb::renderCurrentPage(state, millis());
   g_lastRenderMs = millis();
   g_needRedraw = false;
 
@@ -144,9 +144,10 @@ void loop() {
     requestRedraw();
   }
 
-  // 渲染调度：render-on-change + 帧率上限，串口消息不阻塞渲染
-  if (g_needRedraw && millis() - g_lastRenderMs >= kFrameIntervalMs) {
-    ccb::renderCurrentPage(state);
+  // 渲染调度：render-on-change + 帧率驱动 mascot 动画，串口消息不阻塞渲染
+  bool frameDue = (millis() - g_lastRenderMs >= kFrameIntervalMs);
+  if (g_needRedraw || frameDue) {
+    ccb::renderCurrentPage(state, millis());
     g_needRedraw = false;
     g_lastRenderMs = millis();
   }

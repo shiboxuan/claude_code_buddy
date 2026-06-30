@@ -4,6 +4,7 @@
 // 依据: protocol §5.1(session_state) / §5.2(global_state) / §5.3(color) / §5.4(page) / §5.8(alert kind)
 
 #include <cstdint>
+#include <cstring>
 
 namespace ccb {
 

@@ -25,8 +25,8 @@ inline void nextPage(AppState& s) { s.page = nextOf(s.page); }
 inline void backToMascot(AppState& s) { s.page = Page::Mascot; }
 inline void setPage(AppState& s, Page p) { s.page = p; }
 
-// 渲染当前页（使用 M5.Display，实现见 .cpp）。FW-P3：状态条 + mascot/status 占位页，
+// 渲染当前页（使用 M5.Display，实现见 .cpp）。nowMs 驱动 mascot 动画（FW-P4）。
 // detail/sessions/settings/error 占位（FW-P5 补内容）。
-void renderCurrentPage(const AppState& s);
+void renderCurrentPage(const AppState& s, uint32_t nowMs);
 
 }  // namespace ccb

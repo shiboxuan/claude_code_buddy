@@ -4,6 +4,7 @@
 #include <M5Unified.h>
 
 #include "app/Config.h"
+#include "ui/MascotRenderer.h"
 #include "ui/Theme.h"
 
 namespace ccb {
@@ -25,18 +26,18 @@ void renderStatusbar(const AppState& s) {
   d.drawString(String(s.counts.sessions), theme::SCREEN_W - 2, 3);
 }
 
-void renderMascotPage(const AppState& s) {
+void renderMascotPage(const AppState& s, uint32_t nowMs) {
   auto& d = M5.Display;
   d.clear(TFT_BLACK);
   renderStatusbar(s);
-  int cy = theme::STATUS_BAR_H + (theme::SCREEN_H - theme::STATUS_BAR_H) / 2;
-  d.fillCircle(theme::SCREEN_W / 2, cy - 14, 16, theme::rgb565(stateColor(s)));
-  d.setTextDatum(middle_center);
+  MascotRenderer::render(s.globalState, nowMs);  // 三态动画 mascot
+  // 品牌底部
+  d.setTextDatum(bottom_center);
   d.setTextColor(TFT_WHITE, TFT_BLACK);
   d.setTextSize(1);
-  d.drawString("Claude Code Buddy", theme::SCREEN_W / 2, cy + 10);
+  d.drawString("Claude Code Buddy", theme::SCREEN_W / 2, theme::SCREEN_H - 12);
   d.setTextColor(TFT_CYAN, TFT_BLACK);
-  d.drawString(String("fw ") + FW_VERSION, theme::SCREEN_W / 2, cy + 24);
+  d.drawString(String("fw ") + FW_VERSION, theme::SCREEN_W / 2, theme::SCREEN_H - 2);
 }
 
 void renderStatusPage(const AppState& s) {
@@ -69,15 +70,15 @@ void renderPlaceholderPage(const AppState& s, const char* name) {
 }
 }  // namespace
 
-void renderCurrentPage(const AppState& s) {
+void renderCurrentPage(const AppState& s, uint32_t nowMs) {
   switch (s.page) {
-    case Page::Mascot: renderMascotPage(s); break;
+    case Page::Mascot: renderMascotPage(s, nowMs); break;
     case Page::Status: renderStatusPage(s); break;
     case Page::Detail: renderPlaceholderPage(s, "detail"); break;
     case Page::Sessions: renderPlaceholderPage(s, "sessions"); break;
     case Page::Settings: renderPlaceholderPage(s, "settings"); break;
     case Page::Error: renderPlaceholderPage(s, "error"); break;
-    default: renderMascotPage(s); break;
+    default: renderMascotPage(s, nowMs); break;
   }
 }
 
