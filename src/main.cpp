@@ -1,34 +1,35 @@
 // claude_code_buddy 固件入口 — M5Stack StickS3
 // FW-P0: 闪屏 + USB CDC
-// FW-P1: serial transport + 握手（hello/hello_ack）、ack、pong，非阻塞主循环
+// FW-P1: serial transport + 握手/ack/pong
+// FW-P2: AppState（device_snapshot/session_snapshot/config 应用）+ 静音持久化
 // 详见 docs/claude_code_buddy/plans/firmware-development-plan.md
 
 #include <Arduino.h>
 #include <M5Unified.h>
 #include <string>
 
+#include "app/AppState.h"
 #include "app/Config.h"
 #include "app/Protocol.h"
 #include "app/SerialTransport.h"
+#include "app/Types.h"
 
 static ccb::SerialTransport transport;
 static ccb::Protocol protocol;
+static ccb::AppState state;
 
-// 连接状态（FW-P2 起并入 AppState）
-static bool g_handshakeDone = false;
-static bool g_handshakeError = false;
 static uint32_t g_lastHelloMs = 0;
-
 static const uint32_t kHelloRetryMs = 1000;  // 未握手则每秒重发 hello（含重连重握手）
 
 static void sendHello() {
   char buf[256];
-  if (protocol.serializeHello(buf, sizeof(buf), false)) transport.sendLine(buf);
+  if (protocol.serializeHello(buf, sizeof(buf), state.muted)) transport.sendLine(buf);
 }
 
 static void sendAck(uint32_t seq) {
   char buf[128];
   if (protocol.serializeAck(buf, sizeof(buf), seq, millis())) transport.sendLine(buf);
+  state.lastSeq = seq;
 }
 
 static void sendPong(int64_t echoTsMs) {
@@ -61,10 +62,10 @@ static void drawStatusLine() {
   auto &d = M5.Display;
   d.setTextDatum(bottom_center);
   d.setTextSize(1);
-  if (g_handshakeError) {
+  if (state.handshakeError) {
     d.setTextColor(TFT_PURPLE, TFT_BLACK);
     d.drawString("USB: err", d.width() / 2, d.height() - 2);
-  } else if (g_handshakeDone) {
+  } else if (state.handshakeDone) {
     d.setTextColor(TFT_GREEN, TFT_BLACK);
     d.drawString("USB: ok", d.width() / 2, d.height() - 2);
   } else {
@@ -92,15 +93,29 @@ static void handleLine(const std::string& line) {
 
   switch (r.type) {
     case ccb::FrameType::HelloAck:
-      g_handshakeDone = r.ackOk;
-      g_handshakeError = !r.ackOk;
-      sendAck(r.seq);  // hello_ack 是关键帧（带 seq），回 ack
+      state.applyHelloAck(r.ackOk);
+      sendAck(r.seq);
       break;
     case ccb::FrameType::DeviceSnapshot:
+      state.applyDeviceSnapshot(protocol.doc());
+      sendAck(r.seq);
+      break;
     case ccb::FrameType::SessionSnapshot:
-    case ccb::FrameType::Alert:
+      state.applySessionSnapshot(protocol.doc());
+      sendAck(r.seq);
+      break;
+    case ccb::FrameType::Alert: {
+      // 独立 alert 帧：更新 alert 信息 + ack（音色在 FW-P7）
+      const JsonDocument& d = protocol.doc();
+      state.alert.present = true;
+      state.alert.kind = ccb::alertKindFromString(d["kind"] | "");
+      state.alert.sound = d["sound"] | false;
+      sendAck(r.seq);
+      break;
+    }
     case ccb::FrameType::Config:
-      sendAck(r.seq);  // FW-P2 起更新 AppState
+      state.applyConfig(protocol.doc());
+      sendAck(r.seq);
       break;
     case ccb::FrameType::Ping:
       sendPong(r.tsMs);
@@ -117,10 +132,11 @@ void setup() {
   M5.begin(cfg);
 
   transport.begin();
+  state.loadMuted();  // FW-P2-T04：从 NVS 恢复静音
   drawSplash();
   drawStatusLine();
 
-  // 启动发 hello（握手）
+  // 启动发 hello（握手），muted 取自持久化状态
   sendHello();
   g_lastHelloMs = millis();
 }
@@ -130,25 +146,22 @@ void loop() {
 
   transport.poll();
 
-  // 超限帧
   if (transport.consumeFrameTooLarge()) {
     sendError("frame_too_large");
   }
 
-  // 处理完整行
   std::string line;
   while (transport.recvLine(line)) {
     handleLine(line);
   }
 
   // 未握手则周期重发 hello（含断线重连后重握手，FW-P8-T04）
-  if (!g_handshakeDone && !g_handshakeError &&
+  if (!state.handshakeDone && !state.handshakeError &&
       millis() - g_lastHelloMs >= kHelloRetryMs) {
     sendHello();
     g_lastHelloMs = millis();
   }
 
-  // 状态行仅在变化时重绘（避免每帧刷屏闪烁）
   drawStatusLine();
 
   delay(2);  // 让出 CPU，保持非阻塞

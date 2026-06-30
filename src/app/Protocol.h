@@ -49,6 +49,8 @@ class Protocol {
  public:
   // 解析一行（不含 '\n'）
   void parse(const std::string& line, ParseResult& out);
+  // 访问最近一次解析的完整 JSON doc（供 AppState 取字段，FW-P2）
+  const JsonDocument& doc() const { return doc_; }
 
   // 序列化 device → host 帧到 buf（不含 '\n'，由 SerialTransport 补）。返回是否成功。
   bool serializeHello(char* buf, size_t size, bool muted);
