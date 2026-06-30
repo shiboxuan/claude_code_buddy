@@ -34,8 +34,14 @@ bool ButtonController::poll(uint32_t now, AppState& s, Protocol& p, SerialTransp
     redraw = true;
   }
 
-  // B：长按重发 hello（重握手）。B 短按静音见 FW-P7。
-  if (eb == ButtonEvent::LongPress) {
+  // B：短按静音切换（FW-P7-T02）+ 上报 mute；长按重发 hello（重握手）
+  if (eb == ButtonEvent::ShortPress) {
+    s.setMuted(!s.muted);  // setMuted 变化时 saveMuted（NVS，FW-P2-T04 / FW-P7-T06）
+    char buf[96];
+    if (p.serializeMute(buf, sizeof(buf), s.muted, millis())) t.sendLine(buf);
+    sendButton("B", "short_press");
+    redraw = true;
+  } else if (eb == ButtonEvent::LongPress) {
     char buf[256];
     if (p.serializeHello(buf, sizeof(buf), s.muted)) t.sendLine(buf);
     sendButton("B", "long_press");

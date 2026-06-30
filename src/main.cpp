@@ -10,6 +10,7 @@
 #include <string>
 
 #include "app/AppState.h"
+#include "app/AudioController.h"
 #include "app/ButtonController.h"
 #include "app/Config.h"
 #include "app/Protocol.h"
@@ -21,6 +22,7 @@ static ccb::SerialTransport transport;
 static ccb::Protocol protocol;
 static ccb::AppState state;
 static ccb::ButtonController buttons;
+static ccb::AudioController audio;
 
 static uint32_t g_lastHelloMs = 0;
 static const uint32_t kHelloRetryMs = 1000;  // 未握手则每秒重发 hello
@@ -100,6 +102,11 @@ static void handleLine(const std::string& line) {
       // FW-P5-T06：done(color=blue) 启动 doneTtl 计时；非 done 取消
       if (state.color == ccb::Color::Blue) state.doneTimer.start(millis());
       else state.doneTimer.cancel();
+      // FW-P7：alert 提示音（边沿 + sound + 静音判定）
+      if (state.alert.present)
+        audio.handleAlert(state.alert.kind,
+                          state.focus.present ? state.focus.id.c_str() : nullptr,
+                          state.alert.sound, state.muted);
       requestRedraw();
       break;
     case ccb::FrameType::SessionSnapshot:
@@ -112,6 +119,8 @@ static void handleLine(const std::string& line) {
       state.alert.present = true;
       state.alert.kind = ccb::alertKindFromString(d["kind"] | "");
       state.alert.sound = d["sound"] | false;
+      const char* sid = d["session_id"].is<const char*>() ? d["session_id"].as<const char*>() : nullptr;
+      audio.handleAlert(state.alert.kind, sid, state.alert.sound, state.muted);  // FW-P7
       sendAck(r.seq);
       requestRedraw();
       break;
@@ -137,6 +146,7 @@ void setup() {
 
   transport.begin();
   state.loadMuted();  // FW-P2-T04：从 NVS 恢复静音
+  audio.begin();      // FW-P7-T05：音量保守上限
 
   // 首帧渲染 mascot 页（状态条显示 USB: wait）
   ccb::renderCurrentPage(state, millis());

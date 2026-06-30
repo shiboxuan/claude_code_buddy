@@ -170,4 +170,13 @@ bool Protocol::serializePage(char* buf, size_t size, Page page, bool muted, uint
   return serializeJson(d, buf, size) > 0;
 }
 
+bool Protocol::serializeMute(char* buf, size_t size, bool muted, uint32_t uptimeMs) {
+  JsonDocument d;
+  d["type"] = "mute";
+  d["protocol"] = PROTOCOL_VERSION;
+  d["muted"] = muted;
+  d["uptime_ms"] = uptimeMs;
+  return serializeJson(d, buf, size) > 0;
+}
+
 }  // namespace ccb

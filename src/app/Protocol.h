@@ -66,6 +66,7 @@ class Protocol {
                        Page page, bool muted, uint32_t uptimeMs);
   bool serializePage(char* buf, size_t size, Page page, bool muted, uint32_t uptimeMs,
                      Page prevPage = Page::Unknown);
+  bool serializeMute(char* buf, size_t size, bool muted, uint32_t uptimeMs);  // FW-P7
 
  private:
   JsonDocument doc_;  // 复用，避免反复堆分配
