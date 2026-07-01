@@ -146,6 +146,7 @@ static void handleLine(const std::string& line) {
 void setup() {
   auto cfg = M5.config();
   cfg.serial_baudrate = 115200;
+  cfg.fallback_board = m5gfx::board_t::board_M5StickS3;  // FW-P9：强制 StickS3 配置（ES8311 扬声器等）
   M5.begin(cfg);
   ccb::initFrameBuffer();  // 双缓冲帧缓冲（消除全屏重绘频闪）
 

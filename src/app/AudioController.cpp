@@ -6,7 +6,7 @@
 namespace ccb {
 
 namespace {
-constexpr uint8_t kVolume = 64;  // 保守音量(~25%)；上限 75% 由设计不超越（FW-P7-T05）
+constexpr uint8_t kVolume = 200;  // 音量(~78%; 电池供电建议 ≤191(75%), USB 供电可更高, FW-P9 调优)
 }
 
 void AudioController::begin() {
@@ -21,9 +21,12 @@ bool AudioController::handleAlert(AlertKind kind, const char* sessionId, bool so
 }
 
 void AudioController::playTone(AlertKind kind) {
-  // 单音色简化（FW-P9 真机调优多声/时序）
   switch (kind) {
-    case AlertKind::Attention: M5.Speaker.tone(880, 100); break;   // 两声短提示（简化一声）
+    case AlertKind::Attention:                                      // 两声短提示
+      M5.Speaker.tone(880, 80);
+      delay(100);
+      M5.Speaker.tone(880, 80);
+      break;
     case AlertKind::Done:      M5.Speaker.tone(660, 80);  break;   // 一声轻提示
     case AlertKind::Error:     M5.Speaker.tone(220, 200); break;   // 低频错误
     case AlertKind::Connected: M5.Speaker.tone(990, 60);  break;   // 短上行音
