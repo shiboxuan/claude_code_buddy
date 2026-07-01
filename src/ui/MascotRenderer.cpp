@@ -3,12 +3,13 @@
 
 #include <M5Unified.h>
 
+#include "ui/FrameBuffer.h"
 #include "ui/Theme.h"
 
 namespace ccb {
 
 void MascotRenderer::render(GlobalState state, uint32_t nowMs) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   uint8_t f = frameIndex(state, nowMs);
   uint16_t col = theme::rgb565(theme::colorFor(state));
   int cx = theme::SCREEN_W / 2;

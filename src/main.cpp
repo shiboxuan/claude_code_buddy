@@ -17,6 +17,7 @@
 #include "app/SerialTransport.h"
 #include "app/Types.h"
 #include "app/UiRouter.h"
+#include "ui/FrameBuffer.h"
 
 static ccb::SerialTransport transport;
 static ccb::Protocol protocol;
@@ -146,6 +147,7 @@ void setup() {
   auto cfg = M5.config();
   cfg.serial_baudrate = 115200;
   M5.begin(cfg);
+  ccb::initFrameBuffer();  // 双缓冲帧缓冲（消除全屏重绘频闪）
 
   transport.begin();
   state.loadMuted();  // FW-P2-T04：从 NVS 恢复静音

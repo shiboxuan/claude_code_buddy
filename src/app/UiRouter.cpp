@@ -4,6 +4,7 @@
 #include <M5Unified.h>
 
 #include "app/Config.h"
+#include "ui/FrameBuffer.h"
 #include "ui/MascotRenderer.h"
 #include "ui/Theme.h"
 
@@ -15,7 +16,7 @@ Color stateColor(const AppState& s) {
 }
 
 void renderStatusbar(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   uint16_t col = theme::rgb565(stateColor(s));
   d.fillRect(0, 0, theme::SCREEN_W, theme::STATUS_BAR_H, col);
   d.setTextDatum(top_left);
@@ -28,7 +29,7 @@ void renderStatusbar(const AppState& s) {
 
 // UTF-8 感知的像素宽度截断（FR-018 长文本不溢出）
 String truncateToWidth(const char* s, int maxW) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   if (!s || !*s) return String("");
   String str(s);
   if (d.textWidth(str) <= maxW) return str;
@@ -52,7 +53,7 @@ String truncateToWidth(const char* s, int maxW) {
 }
 
 void renderMascotPage(const AppState& s, uint32_t nowMs) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   MascotRenderer::render(s.globalState, nowMs);
@@ -65,7 +66,7 @@ void renderMascotPage(const AppState& s, uint32_t nowMs) {
 }
 
 void renderStatusPage(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   int y = theme::STATUS_BAR_H + 4;
@@ -88,7 +89,7 @@ void renderStatusPage(const AppState& s) {
 }
 
 void renderDetailPage(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   int y = theme::STATUS_BAR_H + 4;
@@ -117,7 +118,7 @@ void renderDetailPage(const AppState& s) {
 }
 
 void renderSessionListPage(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   int y = theme::STATUS_BAR_H + 4;
@@ -143,7 +144,7 @@ void renderSessionListPage(const AppState& s) {
 }
 
 void renderSettingsPage(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   int y = theme::STATUS_BAR_H + 4;
@@ -161,7 +162,7 @@ void renderSettingsPage(const AppState& s) {
 }
 
 void renderErrorPage(const AppState& s) {
-  auto& d = M5.Display;
+  auto& d = ccb::fb();
   d.clear(TFT_BLACK);
   renderStatusbar(s);
   d.setTextDatum(middle_center);
@@ -184,6 +185,7 @@ void renderCurrentPage(const AppState& s, uint32_t nowMs) {
     case Page::Error: renderErrorPage(s); break;
     default: renderMascotPage(s, nowMs); break;
   }
+  ccb::fb().pushSprite(0, 0);  // 双缓冲：离屏绘制后一次性推屏，消除频闪
 }
 
 }  // namespace ccb
