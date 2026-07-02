@@ -54,15 +54,10 @@ String truncateToWidth(const char* s, int maxW) {
 
 void renderMascotPage(const AppState& s, uint32_t nowMs) {
   auto& d = ccb::fb();
-  d.clear(TFT_BLACK);
-  renderStatusbar(s);
-  MascotRenderer::render(s.globalState, nowMs);
-  d.setTextDatum(bottom_center);
-  d.setTextColor(TFT_WHITE, TFT_BLACK);
-  d.setTextSize(1);
-  d.drawString("Claude Code Buddy", theme::SCREEN_W / 2, theme::SCREEN_H - 12);
-  d.setTextColor(TFT_CYAN, TFT_BLACK);
-  d.drawString(String("fw ") + FW_VERSION, theme::SCREEN_W / 2, theme::SCREEN_H - 2);
+  // 首页彻底产品化：全屏 = 背景呼吸脉冲 + 橙色小怪物。
+  // 无状态条、无文字；警示只体现在背景（idle 绿→黑无脉冲，其余状态色呼吸）。
+  d.clear(theme::mascotBg(stateColor(s), nowMs));
+  MascotRenderer::render(s.globalState, stateColor(s), nowMs);
 }
 
 void renderStatusPage(const AppState& s) {

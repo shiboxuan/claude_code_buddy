@@ -1,6 +1,7 @@
 #pragma once
-// MascotRenderer — M5GFX 基础几何 mascot 绘制与三态动画（FW-P4）
-// frameIndex 为纯逻辑（可 native 测试）；render 使用 M5.Display（.cpp，ESP32）。
+// MascotRenderer — Claude 橙色像素小怪物：idle 蹦跳/偷看 + 事件态动画（首页重设计）
+// frameIndex 为纯逻辑（保留供 native 测试）；render 为有状态动画引擎（.cpp，ESP32）。
+// 小怪物恒为橙色，状态警示交给背景脉冲（见 theme::mascotBg）。
 // 依据: protocol §5.2、system-design §Mascot 动画
 
 #include <stdint.h>
@@ -20,8 +21,9 @@ class MascotRenderer {
     if (period == 0) period = 1;
     return static_cast<uint8_t>((nowMs / period) % kFrames);
   }
-  // 渲染 mascot 到 M5.Display（几何：身体圆 + 眼睛 + 三态点缀，颜色随状态）。
-  static void render(GlobalState state, uint32_t nowMs);
+  // 渲染小怪物（有状态动画引擎，内部按 nowMs 步进位置/挤压/表情）。
+  // color 为权威状态色：Idle+Blue 视为 done(开心跳)，其余按 state 决定动画模式。
+  static void render(GlobalState state, Color color, uint32_t nowMs);
 };
 
 }  // namespace ccb

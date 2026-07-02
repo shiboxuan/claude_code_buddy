@@ -66,5 +66,42 @@ inline Color colorFor(GlobalState s) {
 
 inline uint16_t rgb565For(GlobalState s) { return rgb565(colorFor(s)); }
 
+// —— 首页背景呼吸脉冲（小怪物恒橙，警示只体现在背景）——
+// 把 HEX 按亮度百分比压暗（0..100）。纯整数运算。
+inline uint32_t dimHex(uint32_t hex, uint8_t pct) {
+  uint32_t r = ((hex >> 16) & 0xFF) * pct / 100;
+  uint32_t g = ((hex >> 8) & 0xFF) * pct / 100;
+  uint32_t b = (hex & 0xFF) * pct / 100;
+  return (r << 16) | (g << 8) | b;
+}
+
+// 三角波呼吸：nowMs 在 periodMs 内从 minPct 线性升到 maxPct 再降回。整数运算，无浮点。
+inline uint8_t triPulse(uint32_t nowMs, uint32_t periodMs, uint8_t minPct, uint8_t maxPct) {
+  if (periodMs == 0) periodMs = 1000;
+  uint32_t t = nowMs % periodMs;
+  uint32_t half = periodMs / 2;
+  if (half == 0) half = 1;
+  uint32_t up = (t < half) ? t : (periodMs - t);  // 0..half
+  return static_cast<uint8_t>(minPct + (maxPct - minPct) * up / half);
+}
+
+// 首页背景色：按权威 Color 返回暗色调呼吸脉冲背景。
+//   Green(idle)  → 纯黑，无脉冲（安静）
+//   Red(working) → 慢节奏呼吸    Yellow(attention) → 快节奏呼吸
+//   Purple(error)→ 急促呼吸      Blue(done/conn)   → 柔和呼吸
+inline uint16_t mascotBg(Color c, uint32_t nowMs) {
+  uint32_t base;
+  uint8_t pct;
+  switch (c) {
+    case Color::Red:      base = HEX_RED;    pct = triPulse(nowMs, 2600, 10, 34); break;
+    case Color::RedFlash: base = HEX_RED;    pct = triPulse(nowMs,  700, 16, 46); break;
+    case Color::Yellow:   base = HEX_YELLOW; pct = triPulse(nowMs,  900, 12, 38); break;
+    case Color::Purple:   base = HEX_PURPLE; pct = triPulse(nowMs,  750, 14, 44); break;
+    case Color::Blue:     base = HEX_BLUE;   pct = triPulse(nowMs, 2000, 10, 30); break;
+    default:              return 0x0000;  // Green / Gray / Unknown → 黑，无脉冲
+  }
+  return hexToRgb565(dimHex(base, pct));
+}
+
 }  // namespace theme
 }  // namespace ccb

@@ -33,7 +33,7 @@ static const uint32_t kDisconnectMs = 15000;  // FW-P8-T04：15s 无帧判定断
 // 渲染调度（FW-P3-T05）：render-on-change + 帧率上限，串口消息不阻塞渲染
 static bool g_needRedraw = true;
 static uint32_t g_lastRenderMs = 0;
-static const uint32_t kFrameIntervalMs = 100;  // 10 FPS（6-12 范围），mascot 动画帧率
+static const uint32_t kFrameIntervalMs = 50;  // 20 FPS：首页小怪物蹦跳/偷看/背景呼吸更顺滑
 
 static void requestRedraw() { g_needRedraw = true; }
 
