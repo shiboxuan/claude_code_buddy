@@ -19,8 +19,8 @@ using namespace ccb::mascot;
 enum class Mode : uint8_t { Sleep, Idle, Working, Attention, Error, Done };
 enum class Eyes : uint8_t { Open, Blink, Closed, Happy, Dizzy };
 
-// idle 例程：一段段小动作串起来，跑完随机换下一段（含偷看 Peek）
-enum class Routine : uint8_t { Hop, Look, Wiggle, Peek };
+// idle 例程：一段段小动作串起来，跑完随机换下一段（含偷看 Peek / 灵感 Idea）
+enum class Routine : uint8_t { Hop, Look, Wiggle, Peek, Idea };
 
 constexpr int kCx = theme::SCREEN_W / 2;  // 屏幕水平中心
 constexpr float kHalfW = BODY_W / 2.0f + 2;
@@ -46,6 +46,7 @@ struct Anim {
   float arcH = 0;              // 本段跳跃弧高（0=不跳）
   bool sqLand = false;         // 落地挤压
   bool wiggle = false;         // 原地抖动
+  bool ideaSeg = false;        // 本段头顶冒灯泡（灵感彩蛋）
 
   // 眨眼（独立计时）
   uint32_t nextBlink = 1800;
@@ -75,14 +76,16 @@ void advance(uint32_t now) {
   A.arcH = 0;
   A.sqLand = false;
   A.wiggle = false;
+  A.ideaSeg = false;
   A.sx0 = A.x;
 
   switch (A.routine) {
     case Routine::Hop: {
       if (A.hopsLeft <= 0) {  // 换新例程
         int r = irand(0, 99);
-        A.routine = (r < 34) ? Routine::Peek : (r < 64) ? Routine::Hop
-                             : (r < 84) ? Routine::Look : Routine::Wiggle;
+        A.routine = (r < 30) ? Routine::Peek : (r < 56) ? Routine::Hop
+                             : (r < 74) ? Routine::Look
+                             : (r < 88) ? Routine::Wiggle : Routine::Idea;
         A.step = 0;
         A.hopsLeft = irand(2, 4);
         advance(now);
@@ -108,6 +111,14 @@ void advance(uint32_t now) {
       A.sx1 = A.x;
       A.wiggle = true;
       A.segDur = irand(900, 1300);
+      A.routine = Routine::Hop;
+      A.hopsLeft = 0;
+      break;
+    }
+    case Routine::Idea: {  // 原地停顿，头顶冒灯泡
+      A.sx1 = A.x;
+      A.ideaSeg = true;
+      A.segDur = irand(1300, 1700);
       A.routine = Routine::Hop;
       A.hopsLeft = 0;
       break;
@@ -142,65 +153,98 @@ void resetIdle(uint32_t now) {
 }
 
 // ——绘制原语——
+// 方块黑眼（官方 mascot 招牌）：Open 方块 / Blink·Closed 一横 / Happy ^^ / Dizzy ><
 void drawEyes(Eyes e, float cx, float ey, float scale) {
   auto& d = ccb::fb();
   uint16_t dk = C(HEX_DARK);
-  int ew = static_cast<int>(9 * scale), eh = static_cast<int>(19 * scale);
-  int gap = static_cast<int>(15 * scale);
-  int lx = static_cast<int>(cx) - gap / 2 - ew;
+  int s = static_cast<int>(EYE * scale);
+  if (s < 4) s = 4;
+  int gap = static_cast<int>(EYE_GAP * scale);
+  int lx = static_cast<int>(cx) - gap / 2 - s;
   int rx = static_cast<int>(cx) + gap / 2;
   int cy = static_cast<int>(ey);
   switch (e) {
     case Eyes::Open:
-      d.fillRoundRect(lx, cy, ew, eh, 3, dk);
-      d.fillRoundRect(rx, cy, ew, eh, 3, dk);
-      // 眼里一点高光
-      d.fillRect(lx + 2, cy + 3, 2, 3, C(HEX_ACCENT));
-      d.fillRect(rx + 2, cy + 3, 2, 3, C(HEX_ACCENT));
+      d.fillRect(lx, cy, s, s, dk);
+      d.fillRect(rx, cy, s, s, dk);
+      // 左上角一点高光
+      d.fillRect(lx + 2, cy + 2, 3, 3, C(HEX_ACCENT));
+      d.fillRect(rx + 2, cy + 2, 3, 3, C(HEX_ACCENT));
       break;
     case Eyes::Blink:
     case Eyes::Closed:
-      d.fillRoundRect(lx, cy + eh / 2 - 2, ew, 4, 2, dk);
-      d.fillRoundRect(rx, cy + eh / 2 - 2, ew, 4, 2, dk);
+      d.fillRect(lx, cy + s / 2 - 2, s, 4, dk);
+      d.fillRect(rx, cy + s / 2 - 2, s, 4, dk);
       break;
     case Eyes::Happy: {  // ^ ^
-      int my = cy + eh / 2;
+      int my = cy + s;  // 底沿
       for (int t = 0; t < 2; ++t) {  // 2px 粗
-        d.drawLine(lx, my + t, lx + ew / 2, my - 6 + t, dk);
-        d.drawLine(lx + ew / 2, my - 6 + t, lx + ew, my + t, dk);
-        d.drawLine(rx, my + t, rx + ew / 2, my - 6 + t, dk);
-        d.drawLine(rx + ew / 2, my - 6 + t, rx + ew, my + t, dk);
+        d.drawLine(lx, my + t, lx + s / 2, cy + t, dk);
+        d.drawLine(lx + s / 2, cy + t, lx + s, my + t, dk);
+        d.drawLine(rx, my + t, rx + s / 2, cy + t, dk);
+        d.drawLine(rx + s / 2, cy + t, rx + s, my + t, dk);
       }
       break;
     }
     case Eyes::Dizzy:  // > <
       for (int t = 0; t < 2; ++t) {
-        d.drawLine(lx, cy + t, lx + ew, cy + eh / 2 + t, dk);
-        d.drawLine(lx + ew, cy + eh / 2 + t, lx, cy + eh + t, dk);
-        d.drawLine(rx + ew, cy + t, rx, cy + eh / 2 + t, dk);
-        d.drawLine(rx, cy + eh / 2 + t, rx + ew, cy + eh + t, dk);
+        d.drawLine(lx, cy + t, lx + s, cy + s / 2 + t, dk);
+        d.drawLine(lx + s, cy + s / 2 + t, lx, cy + s + t, dk);
+        d.drawLine(rx + s, cy + t, rx, cy + s / 2 + t, dk);
+        d.drawLine(rx, cy + s / 2 + t, rx + s, cy + s + t, dk);
       }
       break;
   }
 }
 
-// 身体：脚底 (fx,ffeetY)，squashY 竖向挤压系数（<1 更扁更宽）。
+// 身体：脚底基线 (fx,ffeetY)=腿底，squashY 竖向挤压系数（<1 更扁更宽）。
+// 轮廓 = 三条短腿 + 方块躯干 + 眼睛高度两侧外伸的小方块短臂。
 void drawBody(float fx, float ffeetY, float squashY, Eyes eyes) {
   auto& d = ccb::fb();
-  int h = static_cast<int>(BODY_H * squashY);
-  int w = static_cast<int>(BODY_W * (1.0f + (1.0f - squashY) * 0.55f));  // 挤压时变宽
-  int left = static_cast<int>(fx - w / 2.0f);
-  int top = static_cast<int>(ffeetY) - h;
-  int r = 9;
+  uint16_t body = C(HEX_BODY), hi = C(HEX_BODY_HI), sh = C(HEX_BODY_SH);
 
-  d.fillRoundRect(left, top, w, h, r, C(HEX_BODY));
-  d.fillRoundRect(left + 3, top + 3, w - 6, h / 5, r / 2, C(HEX_BODY_HI));  // 顶部高光带
-  // 三条短腿：底部两条暗缝
-  int legH = h / 4, notch = 6;
-  d.fillRect(left + w / 3 - notch / 2, static_cast<int>(ffeetY) - legH, notch, legH, C(HEX_BODY_SH));
-  d.fillRect(left + 2 * w / 3 - notch / 2, static_cast<int>(ffeetY) - legH, notch, legH, C(HEX_BODY_SH));
+  int th = static_cast<int>(BODY_H * squashY);                             // 躯干高（含挤压）
+  int w = static_cast<int>(BODY_W * (1.0f + (1.0f - squashY) * 0.30f));    // 挤压时略变宽（克制，别拉胖）
+  int legH = static_cast<int>(LEG_H * clampf(squashY, 0.5f, 1.0f));        // 挤压时腿也压短
+  int feet = static_cast<int>(ffeetY);
+  int torsoBot = feet - legH;
+  int top = torsoBot - th;
+  int left = static_cast<int>(fx - w / 2.0f);
+
+  // 三条短腿（先画，上沿被躯干盖住）
+  int span = w - LEG_W;  // 左右两腿中心跨度
+  for (int i = 0; i < 3; ++i) {
+    int cxl = left + LEG_W / 2 + span * i / 2;
+    d.fillRect(cxl - LEG_W / 2, torsoBot, LEG_W, legH, body);
+    d.fillRect(cxl - LEG_W / 2, feet - 2, LEG_W, 2, sh);  // 脚底暗面
+  }
+  // 侧短臂（眼睛高度，往外伸；+2 与躯干重叠避免缝）
+  int armY = top + static_cast<int>(th * 0.28f);
+  int armH = static_cast<int>(ARM_H * clampf(squashY, 0.6f, 1.2f));
+  d.fillRect(left - ARM_W, armY, ARM_W + 2, armH, body);
+  d.fillRect(left + w - 2, armY, ARM_W + 2, armH, body);
+  // 躯干（方块，硬边像素感）
+  d.fillRect(left, top, w, th, body);
+  d.fillRect(left + 3, top + 2, w - 6, th / 6, hi);        // 顶部高光带
+  d.fillRect(left + 2, torsoBot - 3, w - 4, 3, sh);        // 躯干底暗面
   // 眼睛（随挤压略降）
-  drawEyes(eyes, fx, top + h * 0.40f, squashY);
+  drawEyes(eyes, fx, top + th * 0.32f, squashY);
+}
+
+// 头顶灯泡（idle 灵感彩蛋）：暖黄玻璃 + 灰灯座 + 闪烁光芒。
+void drawBulb(int cx, int cy, uint32_t now) {
+  auto& d = ccb::fb();
+  d.fillCircle(cx, cy, 8, C(HEX_BULB));
+  d.fillCircle(cx - 2, cy - 2, 3, C(HEX_BULB_HI));  // 高光
+  d.fillRect(cx - 4, cy + 6, 8, 4, C(HEX_BULB_BASE));  // 灯座
+  d.fillRect(cx - 3, cy + 10, 6, 2, C(HEX_BULB_BASE));
+  // 四道闪烁光芒
+  const int rx[4] = {cx - 13, cx + 13, cx - 9, cx + 9};
+  const int ry[4] = {cy, cy, cy - 11, cy - 11};
+  for (int i = 0; i < 4; ++i) {
+    if (((now / 200) + i) % 2 == 0) continue;
+    d.drawLine(cx, cy, rx[i], ry[i], C(HEX_BULB_HI));
+  }
 }
 
 // 一只爪子（小圆角橙块）
@@ -240,13 +284,20 @@ void drawIdle(uint32_t now) {
 
   Eyes e = A.blinking ? Eyes::Blink : Eyes::Open;
   drawBody(bx, A.feetY, sq, e);
+
+  // 灵感彩蛋：头顶灯泡（前 ~180ms 内不画，模拟"啪"地亮起后浮动）
+  if (A.ideaSeg && u > 0.12f) {
+    int bulbX = static_cast<int>(bx);
+    int bulbY = static_cast<int>(A.feetY) - BODY_FULL_H - 14 + static_cast<int>(sinf(now * 0.006f) * 2.0f);
+    drawBulb(bulbX, bulbY, now);
+  }
 }
 
 void drawSleep(uint32_t now) {
   A.x = kCx;
   A.feetY = GROUND_Y;
   drawBody(kCx, GROUND_Y, 0.66f, Eyes::Closed);  // 趴扁
-  int bodyTop = GROUND_Y - static_cast<int>(BODY_H * 0.66f);
+  int bodyTop = GROUND_Y - static_cast<int>(BODY_FULL_H * 0.66f);
   // Zzz 冒起
   const char* z[3] = {"z", "z", "Z"};
   for (int i = 0; i < 3; ++i) {
@@ -263,6 +314,22 @@ void drawWorking(uint32_t now) {
   float bob = sinf(now * 0.006f) * 2.0f;
   float feet = GROUND_Y + bob;
   drawBody(kCx, feet, 1.0f, Eyes::Open);
+
+  // 蓝色头戴式耳机（盖住两侧短臂：头梁 + 侧连杆 + 耳罩）
+  {
+    auto& d = ccb::fb();
+    uint16_t ph = C(HEX_PHONE), phs = C(HEX_PHONE_SH);
+    int torsoTop = static_cast<int>(feet) - BODY_FULL_H;
+    int tl = kCx - BODY_W / 2, tr = kCx + BODY_W / 2;
+    int cupW = 12, cupH = 22, cupY = torsoTop + 10;
+    d.fillRoundRect(tl - 2, torsoTop - 7, BODY_W + 4, 8, 4, ph);  // 头梁横条
+    d.fillRect(tl - 5, torsoTop - 3, 5, 14, ph);                  // 左连杆
+    d.fillRect(tr, torsoTop - 3, 5, 14, ph);                      // 右连杆
+    d.fillRoundRect(tl - 9, cupY, cupW, cupH, 4, ph);             // 左耳罩
+    d.fillRoundRect(tr - 3, cupY, cupW, cupH, 4, ph);             // 右耳罩
+    d.fillRect(tl - 6, cupY + cupH - 4, cupW - 6, 3, phs);        // 耳罩暗面
+    d.fillRect(tr, cupY + cupH - 4, cupW - 6, 3, phs);
+  }
 
   // 键盘（身前）
   int kw = BODY_W + 20, kh = 14;
@@ -283,7 +350,7 @@ void drawAttention(uint32_t now) {
   A.x = kCx;
   float bounce = fabsf(sinf(now * 0.012f)) * 14.0f;
   float feet = GROUND_Y - bounce;
-  int bodyTop = static_cast<int>(feet) - BODY_H;
+  int bodyTop = static_cast<int>(feet) - BODY_FULL_H;
   drawBody(kCx, feet, 1.0f, Eyes::Open);
 
   // 双臂挥动
@@ -303,7 +370,7 @@ void drawError(uint32_t now) {
   float shiver = sinf(now * 0.05f) * 3.0f;  // 发抖
   A.x = kCx + shiver;
   drawBody(A.x, GROUND_Y, 0.94f, Eyes::Dizzy);
-  int bodyTop = GROUND_Y - static_cast<int>(BODY_H * 0.94f);
+  int bodyTop = GROUND_Y - static_cast<int>(BODY_FULL_H * 0.94f);
   // 小嘴（愁）
   ccb::fb().fillRect(static_cast<int>(A.x) - 5, bodyTop + static_cast<int>(BODY_H * 0.62f), 10, 3, C(HEX_DARK));
   // 蓝汗滴滑落（右脸）
@@ -318,7 +385,7 @@ void drawDone(uint32_t now) {
   A.x = kCx;
   float jump = fabsf(sinf(now * 0.011f)) * 18.0f;
   float feet = GROUND_Y - jump;
-  int bodyTop = static_cast<int>(feet) - BODY_H;
+  int bodyTop = static_cast<int>(feet) - BODY_FULL_H;
   drawBody(kCx, feet, 1.0f, Eyes::Happy);
   // 火花闪烁
   const int sx[4] = {kCx - 34, kCx + 34, kCx - 24, kCx + 26};
