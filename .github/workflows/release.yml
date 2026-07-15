@@ -1,0 +1,59 @@
+name: release
+
+# CD：打 tag (v*) 触发 -> 编译固件 -> 把 .bin 上传到 GitHub Release
+# 用法：git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # 创建 Release 并上传 asset 需要
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run -e m5stack-sticks3
+
+      - name: Stage artifacts
+        run: |
+          set -e
+          mkdir -p artifacts
+          SRC=.pio/build/m5stack-sticks3
+          cp "$SRC/firmware.bin"   "artifacts/firmware-${GITHUB_REF_NAME}.bin"
+          cp "$SRC/bootloader.bin" "artifacts/bootloader-${GITHUB_REF_NAME}.bin"
+          cp "$SRC/partitions.bin" "artifacts/partitions-${GITHUB_REF_NAME}.bin"
+          echo "## 产物" > body.md
+          echo "" >> body.md
+          echo "| 文件 | 烧录地址 |" >> body.md
+          echo "|---|---|" >> body.md
+          echo "| bootloader.bin | 0x0 |" >> body.md
+          echo "| partitions.bin | 0x8000 |" >> body.md
+          echo "| firmware.bin | 0x10000 |" >> body.md
+          ls -la artifacts
+
+      - name: Create Release & upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.bin
+          body_path: body.md
+          generate_release_notes: true
